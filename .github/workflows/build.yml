@@ -1,37 +1,85 @@
 name: Build APK
-on: [push]
+on: push
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'zulu'
-        java-version: '17'
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
 
-    - name: Install Android SDK
-      run: |
-        sudo apt update
-        sudo apt install -y wget unzip
-        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-        unzip commandlinetools-linux-*.zip
-        mkdir -p $HOME/android-sdk/cmdline-tools
-        mv cmdline-tools $HOME/android-sdk/cmdline-tools/latest
-        export ANDROID_SDK_ROOT=$HOME/android-sdk
-        echo "y" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.1.8937393" "cmake;3.22.1" "platforms;android-33" "build-tools;33.0.2"
+      - name: Create gradle wrapper and build files
+        run: |
+          mkdir -p app/src/main/java/com/rocket/cheat
+          mkdir -p app/src/main/cpp
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          echo 'android {' > app/build.gradle
+          echo '    compileSdk 33' >> app/build.gradle
+          echo '    defaultConfig {' >> app/build.gradle
+          echo '        applicationId "com.rocket.cheat"' >> app/build.gradle
+          echo '        minSdk 26' >> app/build.gradle
+          echo '        targetSdk 33' >> app/build.gradle
+          echo '        externalNativeBuild {' >> app/build.gradle
+          echo '            cmake {' >> app/build.gradle
+          echo '                cppFlags "-std=c++17"' >> app/build.gradle
+          echo '            }' >> app/build.gradle
+          echo '        }' >> app/build.gradle
+          echo '        ndk {' >> app/build.gradle
+          echo '            abiFilters "arm64-v8a"' >> app/build.gradle
+          echo '        }' >> app/build.gradle
+          echo '    }' >> app/build.gradle
+          echo '    externalNativeBuild {' >> app/build.gradle
+          echo '        cmake {' >> app/build.gradle
+          echo '            path "src/main/cpp/CMakeLists.txt"' >> app/build.gradle
+          echo '        }' >> app/build.gradle
+          echo '    }' >> app/build.gradle
+          echo '    buildTypes {' >> app/build.gradle
+          echo '        release {' >> app/build.gradle
+          echo '            minifyEnabled false' >> app/build.gradle
+          echo '        }' >> app/build.gradle
+          echo '    }' >> app/build.gradle
+          echo '}' >> app/build.gradle
+          echo 'dependencies {' >> app/build.gradle
+          echo '    implementation "androidx.appcompat:appcompat:1.6.1"' >> app/build.gradle
+          echo '}' >> app/build.gradle
+          echo 'apply plugin: "com.android.application"' > app/build.gradle.new
+          cat app/build.gradle >> app/build.gradle.new
+          mv app/build.gradle.new app/build.gradle
+          echo 'distributionBase=GRADLE_USER_HOME' > gradle/wrapper/gradle-wrapper.properties
+          echo 'distributionPath=wrapper/dists' >> gradle/wrapper/gradle-wrapper.properties
+          echo 'distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip' >> gradle/wrapper/gradle-wrapper.properties
+          echo 'zipStoreBase=GRADLE_USER_HOME' >> gradle/wrapper/gradle-wrapper.properties
+          echo 'zipStorePath=wrapper/dists' >> gradle/wrapper/gradle-wrapper.properties
+          echo 'rootProject.name = "RocketCheat"' > settings.gradle
+          echo 'include ":app"' >> settings.gradle
+          wget -O gradlew https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradlew
+          chmod +x gradlew
 
-    - name: Build APK
-      run: |
-        export ANDROID_SDK_ROOT=$HOME/android-sdk
-        export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/build-tools/33.0.2
-        chmod +x gradlew
-        ./gradlew assembleRelease
+      - name: Install Android SDK
+        run: |
+          sudo apt update
+          sudo apt install -y wget unzip
+          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip commandlinetools-linux-*.zip
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          mv cmdline-tools $HOME/android-sdk/cmdline-tools/latest
+          export ANDROID_SDK_ROOT=$HOME/android-sdk
+          echo "y" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.1.8937393" "cmake;3.22.1" "platforms;android-33" "build-tools;33.0.2"
 
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-release.apk
-        path: app/build/outputs/apk/release/*.apk
+      - name: Build APK
+        run: |
+          export ANDROID_SDK_ROOT=$HOME/android-sdk
+          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/build-tools/33.0.2
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release.apk
+          path: app/build/outputs/apk/release/*.apk
